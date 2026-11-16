@@ -1,0 +1,25 @@
+# Office source files (Markdown only is published)
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+~$*
+
+# Credentials and secrets
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+*.jks
+*.env
+.env.*
+*credentials*
+*.secret
+
+# OS artifacts
+.DS_Store
+Thumbs.db
