@@ -6,6 +6,8 @@
 - **Intended license:** Apache License 2.0
 - **Result:** **Pass with recorded conditions**
 
+> **Scope limitation:** This audit records the documentation-only release snapshot. The TypeScript implementation and npm lockfile added afterward are not covered by the original full publication audit; their dependency licenses are inventoried in `THIRD_PARTY_NOTICES.md`, but source-level secret, PII, and security review remains a release gate.
+
 ## 1. Scope and method
 
 The review covered:
@@ -65,10 +67,10 @@ These are not detected license conflicts, but must remain release gates:
 
 1. **Authority:** the publisher must hold all rights needed to license the documents under Apache 2.0 as the individual copyright holder named in `NOTICE`; because the source files carried organizational author metadata, this must be confirmed before publication.
 2. **Trademark:** Apache 2.0 does not grant trademark rights. Product names must remain descriptive; logos and implied endorsement must not be added without permission.
-3. **Future code:** Apache compatibility must be reassessed when source code, packages, generated clients, templates, images, or fonts are added.
+3. **Implementation:** The later Graph client source and development dependencies were not included in this audit's original scope. Reassess Apache compatibility and run source-level secret, PII, and security scans before publishing implementation code.
 4. **Technical freshness:** product behavior and links can change; the design’s reference date is retained and implementation must revalidate current vendor documentation.
 5. **Not legal advice:** this audit is a technical publication review and does not replace counsel for ownership, patents, export controls, privacy, or trademark disputes.
 
 ## 6. Release decision
 
-No Apache-2.0-incompatible content was found in the inspected release scope. Publication is technically cleared subject to the authority condition above and the stated future-code review gate.
+No Apache-2.0-incompatible content was found in the inspected documentation-only release scope. This result does not clear the later implementation for publication; the stated authority condition and implementation review gate still apply.

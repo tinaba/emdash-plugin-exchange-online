@@ -2,7 +2,7 @@
 
 ## Scope
 
-This repository contains design documentation only. It does **not** vendor or redistribute third-party source code, binaries, fonts, images, or generated assets. API names, configuration identifiers, product names, URLs, and short factual summaries are used for interoperability and attribution.
+This repository contains original TypeScript implementation and design documentation. It does **not** vendor or redistribute third-party source code, binaries, fonts, images, or generated assets. API names, configuration identifiers, product names, URLs, and short factual summaries are used for interoperability and attribution.
 
 ## Referenced open-source projects
 
@@ -14,13 +14,23 @@ This repository contains design documentation only. It does **not** vendor or re
 
 The MIT License permits use, modification, publication, distribution, sublicensing, and sale, subject to preservation of its copyright and permission notice when copies or substantial portions are redistributed. Because no upstream code is redistributed here, no MIT-licensed payload is bundled. The links above provide the authoritative upstream notices.
 
+## Development dependencies
+
+The lockfile contains only development/type-checking dependencies; they are not bundled into the implementation:
+
+| Package | Locked version | Use | License |
+|---|---:|---|---|
+| `typescript` | 5.9.3 | Type checking | Apache-2.0 |
+| `@types/node` | 22.20.5 | Node test-runner types | MIT |
+| `undici-types` | 6.21.0 | Transitive Node type dependency | MIT |
+
 ## Referenced vendor documentation
 
 The documents cite Microsoft Learn, Cloudflare documentation, and EmDash documentation. The repository contains original summaries and API identifiers, not substantial reproductions of those pages. Each design document includes direct source links.
 
 ## Future implementation requirement
 
-If implementation code or assets are added, the release process must:
+Before implementation code is published, and whenever dependencies or assets change, the release process must:
 
 1. generate a dependency inventory/SBOM;
 2. record exact package versions and licenses;
