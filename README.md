@@ -1,8 +1,8 @@
-# EmDash Exchange Online Email Plugin - Design Documents
+# EmDash Exchange Online Email Plugin
 
-EmDash の問い合わせフォームから Exchange Online 経由で通知メールを送信するプラグインについて、要件・基本設計をまとめた文書リポジトリです。
+EmDash の問い合わせフォームから Exchange Online 経由で通知メールを送信するプラグインです。
 
-> **Status:** Design only / implementation not included. 文書内の `TBD` は実装開始前に確定が必要です。
+> **Implementation status:** Microsoft Entra token acquisition and Microsoft Graph `sendMail` client foundation are implemented. The EmDash Forms-to-Queue integration is not yet implemented; see the verified compatibility constraint below. 文書内の `TBD` は本番接続前に確定が必要です。
 
 ## Documents
 
@@ -20,6 +20,14 @@ EmDash の問い合わせフォームから Exchange Online 経由で通知メ�
 - Abuse controls: Turnstile server validation and coarse-grained rate limiting
 - Secret storage: Cloudflare Secrets
 - Data minimization: Queue jobs reference `submissionId`; message bodies and complete email addresses are excluded from logs
+
+## Current implementation
+
+- `src/graph-client.ts` implements tenant-specific client-credentials authentication, in-memory token caching, a single 401 refresh, fixed-mailbox Graph submission, and response classification.
+- Graph `202` is represented as request acceptance only; it is not reported as final delivery.
+- `npm test` and `npm run typecheck` validate this foundation.
+- Production deployment, the EmDash plugin adapter, Queue/D1 processing, Turnstile integration, and operational runbooks remain pending.
+- The current Forms plugin email contract does not include a `submissionId`. Queueing its message would copy submitted personal data into the Queue, which the design forbids without separate approval. The integration must not be enabled until that boundary is resolved.
 
 ## Publication and licensing
 

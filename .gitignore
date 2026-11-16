@@ -23,3 +23,7 @@
 # OS artifacts
 .DS_Store
 Thumbs.db
+
+# JavaScript/TypeScript build output
+node_modules/
+dist/

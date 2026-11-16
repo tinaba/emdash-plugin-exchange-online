@@ -213,6 +213,8 @@ Queue 投入に失敗した場合は受付成功とせず、利用者に情報�
 
 EmDash のバージョンと `email:deliver` の Message / Context 型は、実環境で確認する。0.19+ / 1.x の参考実装だけで互換性を確定しない。
 
+**実装前互換性確認（2026-11-16）**: EmDash 1.5.0 と `@emdash-cms/plugin-forms` 0.2.13 の公開実装を確認した。Forms は submission を保存した後に `ctx.email.send()` を呼ぶが、`email:deliver` に渡す値は `message` と `source` のみで、保存した `submissionId` を含まない。メッセージ本文には送信内容が含まれるため、そのまま Queue Job に格納すると本設計の個人情報最小化要件に反する。Forms が安定した submission 参照を transport に引き渡す方法、または承認済みの暗号化ペイロード方式が決まるまで、Queue Producer / EmDash Adapter の実装・有効化を保留する。現在のコードは独立して検証可能な Graph クライアント基盤に限定する。
+
 ### 8.3 正常系シーケンス
 
 | Step | 処理 | 成功境界 |
