@@ -27,7 +27,7 @@ EmDash の問い合わせフォームから Exchange Online 経由で通知メ�
 
 - `src/graph-client.ts` implements tenant-specific client-credentials authentication, in-memory token caching, a single 401 refresh, fixed-mailbox Graph submission, and response classification.
 - Graph `202` is represented as request acceptance only; it is not reported as final delivery.
-- `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`、`npm run validate` がこの基盤を検証します。Node.js `>=22.6.0` が必要です。
+- `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`、`npm run validate` がこの基盤を検証します。Node.js `^22.13.0 || >=24.0.0` が必要です。これは**開発環境の要件**で、`npm test` の `--experimental-strip-types`（22.6.0 以降）と `eslint@10` の `^20.19.0 || ^22.13.0 || >=24` を同時に満たす範囲です。配布プラグインのランタイム要件は §G2 が未クローズのためまだ決めていません。
 - Production deployment, the EmDash plugin adapter, Queue/D1 processing, Turnstile integration, and operational runbooks remain pending. There is no Worker entry point, Wrangler configuration, or published/installable plugin package yet.
 - The current Forms plugin email contract does not include a `submissionId`. Queueing its message would copy submitted personal data into the Queue, which the design forbids without separate approval. The integration must not be enabled until that boundary is resolved.
 
