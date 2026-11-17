@@ -1,0 +1,78 @@
+# Scheduled security sweeps on the default branch.
+#
+# ci.yml only re-evaluates a lockfile when a branch is pushed, so an advisory
+# published against an unchanged dependency would otherwise stay invisible.
+# These jobs close that gap, and additionally re-scan the whole commit history
+# rather than the push range.
+#
+# Scheduled workflows always run against the default branch (main).
+name: Scheduled security sweeps
+
+on:
+  schedule:
+    # Tuesday 12:15 JST (03:15 UTC), off-peak and offset from the CodeQL cron.
+    - cron: "15 3 * * 2"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: Dependency vulnerabilities (npm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - name: Install dependencies from lockfile
+        run: npm ci
+
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+  full-history-secret-scan:
+    name: Full-history secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect secrets in code and history
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Same reason as in ci.yml: this repository is public, so an uploaded
+          # secret-scan report would be downloadable by anyone.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  license-scan:
+    name: License scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22.x"
+
+      - name: Check dependency licenses against the allowlist
+        run: node .github/scripts/license-audit.mjs

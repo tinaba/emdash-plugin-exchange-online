@@ -1,0 +1,63 @@
+# Static analysis with CodeQL.
+#
+# This workflow is the static-analysis half of the "Lint or static analysis
+# passed" line in .github/pull_request_template.md: the repository has no lint
+# script and adding an ESLint dependency would need the §15 dependency review,
+# so CodeQL provides the automated code review signal.
+#
+# CodeQL is free for public repositories. If this repository ever becomes
+# private, GitHub Advanced Security licences are required for these jobs.
+#
+# SARIF results land under Security -> Code scanning, not in the PR checks list,
+# so this file is intentionally not wired into the aggregate `ci` job in
+# ci.yml. High-severity findings should be triaged before release
+# (docs/development-guide.md §20 Definition of Done).
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # Monday 17:15 JST (08:15 UTC). Re-analyses unchanged code so newly
+    # published rules surface without a code change.
+    - cron: "15 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (JavaScript / TypeScript)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # CodeQL's `javascript` language covers .ts sources too; tsconfig.json
+        # compiles to ES2022/NodeNext with noEmit, so an extracted database is
+        # enough and no build step is required.
+        language:
+          - javascript
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4.39.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v4.39.3

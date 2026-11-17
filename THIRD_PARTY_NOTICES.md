@@ -16,13 +16,17 @@ The MIT License permits use, modification, publication, distribution, sublicensi
 
 ## Development dependencies
 
-The lockfile contains only development/type-checking dependencies; they are not bundled into the implementation:
+The lockfile contains only development, type-checking, and linting dependencies; they are not bundled into the implementation. The direct entries are:
 
 | Package | Locked version | Use | License |
 |---|---:|---|---|
-| `typescript` | 5.9.3 | Type checking | Apache-2.0 |
+| `typescript` | 5.9.3 | Type checking and `npm run build` | Apache-2.0 |
 | `@types/node` | 22.20.5 | Node test-runner types | MIT |
+| `eslint` | 10.15.0 | `npm run lint` | MIT |
+| `typescript-eslint` | 8.73.0 | TypeScript parser and rules for ESLint | MIT |
 | `undici-types` | 6.21.0 | Transitive Node type dependency | MIT |
+
+`eslint` and `typescript-eslint` were added on 2026-11-17 after explicit approval (§15 dependency review) to make `npm run lint` available as described in §G11. They bring 95 transitive packages, so the resolved tree is 98 packages. All of them are MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, or BlueOak-1.0.0, and all are already covered by the allowlist in `.github/scripts/license-audit.mjs`; that script prints the per-license breakdown on every run and fails the build if a package falls outside it.
 
 ## Referenced vendor documentation
 
