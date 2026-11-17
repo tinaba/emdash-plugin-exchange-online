@@ -1,0 +1,6 @@
+# Review ownership for the EmDash Exchange Online Email Plugin.
+# Referenced by .github/pull_request_template.md; enable
+# "Require review from Code Owners" in each branch protection rule.
+#
+# Every path is owned by the repository owner until a team exists.
+* @tinaba
