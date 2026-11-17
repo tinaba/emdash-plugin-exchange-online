@@ -2,9 +2,9 @@
 
 ## EmDash Exchange Online Plugin
 
-> **Status:** Design / Pre-implementation  
-> **License:** Apache-2.0  
-> **Target:** EmDash CMS Plugin  
+> **Status:** Design / Pre-implementation
+> **License:** Apache-2.0
+> **Target:** EmDash CMS Plugin
 > **Implementation starts only after Phase 0 receives a GO decision.**
 
 ---
