@@ -3,6 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tinaba/emdash-plugin-exchange-online.git"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.6.0"

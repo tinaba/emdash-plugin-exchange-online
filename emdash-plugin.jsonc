@@ -1,0 +1,99 @@
+// EmDash plugin manifest — docs/development-guide.md §G4.
+//
+// Every property name and value below is taken from the official EmDash
+// documentation, not guessed. Evidence (upstream emdash-cms/emdash, commit
+// 3e06fbd33fe242613919aa05a9686a94d31715ba, branch main):
+//   - docs/src/content/docs/plugins/creating-plugins/manifest.mdx  (field rules)
+//   - docs/src/content/docs/plugins/creating-plugins/capabilities.mdx (capability names)
+//   - packages/plugin-cli/schemas/emdash-plugin.schema.json (required keys;
+//     additionalProperties: false, so nothing outside that schema is written here)
+// Fields we cannot verify yet are left out and tracked as PENDING (§4.4).
+{
+  // Written as `emdash-plugin init` generates it. `@emdash-cms/plugin-cli` is not a
+  // devDependency yet, so editor completion resolves only after that dependency is
+  // approved (§15). The `$schema` URL in the schema's own `$id` is not served (404).
+  "$schema": "./node_modules/@emdash-cms/plugin-cli/schemas/emdash-plugin.schema.json",
+
+  // Registry identity. The slug is used in plugin route URLs and is deliberately not
+  // the npm package name (@emdash-plugin-exchange-online/core).
+  // PENDING §G3: confirm that this publisher + slug pair is free, and replace
+  // `publisher` with the account DID (see below). Neither is release-blocking today
+  // because nothing is published yet.
+  "slug": "exchange-online-email",
+
+  // Atmosphere account DID or handle. A DID is preferred: "A handle can move to
+  // another DID" (manifest.mdx, "Publisher pinning"), and a mismatch fails with
+  // MANIFEST_PUBLISHER_MISMATCH with no override flag.
+  // PENDING §G3: provisional GitHub handle; run `emdash-plugin whoami` once an
+  // Atmosphere account exists and pin `did:plc:…` before the first publish.
+  "publisher": "tinaba",
+
+  "license": "Apache-2.0", // fixed by §G4/§G12; must match package.json
+
+  // `author` is an object with `name` (≤64 graphemes) plus optional `url`/`email`.
+  // Name matches the copyright line in NOTICE:2.
+  "author": {
+    "name": "Takashi Inaba",
+    "url": "https://github.com/tinaba"
+  },
+
+  // `security` (or `securityContacts`) requires an `email`, a `url`, or both.
+  // SECURITY.md:7 states reports go through the GitHub private-reporting channel,
+  // so no address is invented here.
+  "security": {
+    "url": "https://github.com/tinaba/emdash-plugin-exchange-online/security/policy"
+  },
+
+  // Display metadata shown on the registry listing (manifest.mdx "Package profile").
+  "name": "Exchange Online Email",
+  "description": "Sends EmDash contact-form notifications through Microsoft Exchange Online using Microsoft Graph.", // 108 graphemes, limit 140
+  "keywords": ["email", "exchange-online", "microsoft-365", "microsoft-graph", "notifications"], // max 5
+  "sections": {
+    // Registry long-form section; file references must stay inside the manifest dir.
+    "security": { "file": "./SECURITY.md" }
+  },
+
+  // ------------------------------------------------------------------------
+  // Trust contract (capabilities / allowedHosts / storage).
+  //
+  // Declared: outbound HTTPS only. `network:request` grants `ctx.http.fetch()`
+  // restricted to `allowedHosts`, which is what sending Graph `sendMail` needs.
+  // Justification (verified hosts, no others):
+  //   src/graph-client.ts:53   https://graph.microsoft.com/.default         (scope)
+  //   src/graph-client.ts:160  https://graph.microsoft.com/v1.0/users/…     (sendMail)
+  //   src/graph-client.ts:208  https://login.microsoftonline.com/…          (token)
+  //
+  // Not declared, on purpose:
+  //   - `email:send` grants `ctx.email.send()`, which needs a separate transport
+  //     plugin; this plugin is the transport side, not that caller.
+  //   - `hooks.email-transport:register` (the exclusive `email:deliver` hook) is the
+  //     likely integration shape, but `src/plugin.ts` does not exist yet, so the
+  //     capability is added in the version that starts using it. Declaring it now
+  //     would ask operators to consent to access this version does not use.
+  // Both are tracked in the §G5 capability review (docs/development-guide.md).
+  // ------------------------------------------------------------------------
+  "capabilities": ["network:request"],
+
+  // Exact hosts only: "For fixed destinations, declare `network:request` with
+  // explicit hosts so the consent dialog names them." No `*.` wildcard is used;
+  // §G6 forbids broad network access without explicit approval.
+  "allowedHosts": ["graph.microsoft.com", "login.microsoftonline.com"],
+
+  // No plugin-owned storage collections yet (G9 keeps access tokens memory-only).
+  // Required key; the empty object states that no collection is requested.
+  "storage": {},
+
+  // "HTTPS URL of the source repository"; required by automated-release setup.
+  "repo": "https://github.com/tinaba/emdash-plugin-exchange-online",
+
+  // PENDING §G0/§G1 (release compatibility): `release.requires` takes semver ranges
+  // keyed by `env:emdash` / `env:astro`, e.g. { "env:emdash": ">=0.37.0" }. Omitted
+  // until the minimum EmDash version this plugin is tested against is chosen; an
+  // untested range would be an invented claim. The CI validator warns about this.
+  //
+  // `version` is also omitted on purpose: "For an npm package, keep the version in
+  // `package.json` and omit it from the manifest." package.json carries 0.1.0.
+  //
+  // `admin` is omitted: declaring a page or widget requires an `admin` route in
+  // src/plugin.ts, which does not exist yet (the bundle check would fail).
+}
