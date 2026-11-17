@@ -58,7 +58,8 @@ npm run typecheck
 - **必須チェックの有効化が必要です。** Actions だけではマージは止められません。GitHub の **Settings → Branches → Add branch protection rule** で `main` と `develop` にルールを作り、*Require status checks to pass before merging* に **`CI (required)`** を追加してください。個別のマトリクス判定ではなく集約チェック 1 本を必須にしています。
 - **GitHub 標準のシークレットスキャンも併用してください。** Settings → Security → *Secret scanning* と *Push protection* を有効にすると、コミット前の段階で秘密情報を止められます。公開リポジトリでは無料で使えます。
 - **まだ存在しないスクリプトは呼び出しません。** ビルド・`validate`・lint は `package.json` にスクリプトが定義されるまで `--if-present` またはマニフェストの存在検出でスキップされ、その間はスキップが集約チェックの失敗にならない設計です。開発ガイド §G11 の「期待される操作を理由にスクリプトを捏造しない」に対応しています。
-- `emdash-plugin.jsonc` を追加すると、§G4 の必須フィールドと `package.json` との整合性を検査するジョブが自動的に有効になります。
+- **[`emdash-plugin.jsonc`](emdash-plugin.jsonc) を追加しました。** 公開されている EmDash のマニフェスト仕様（`additionalProperties: false`・必須キー・capability 名の一覧・文字数制限）に沿って、現在のコードが必要とする権限だけを宣言しています: `network:request` と `allowedHosts`（`graph.microsoft.com` / `login.microsoftonline.com`）、`storage` は空で「コレクション要求なし」を明示します。`email:send` や `hooks.email-transport:register` は `src/plugin.ts` が実装され送信方式が決まるまで宣言しません（宣言だけ先に置くと運用者に余計な同意差分が出ます）。一方 `publisher`（Atmosphere DID）と `release.requires`（対応 EmDash 範囲）は §G3・§G0/§G1 の未クローズ項目で、CI は**警告**として表示します（リポジトリ方針として未承認の項目で CI を赤にはしません）。
+- **マニフェスト検査は公式 CLI の代替ではありません。** `.github/scripts/validate-plugin-manifest.mjs` は公開仕様のルールを素の Node で再現したもので、型エラーや capability の誤字を PR の段階で止めます。権限を持つのは `emdash-plugin validate`（`@emdash-cms/plugin-cli`）で、この依存が §15 の審査を通ったら CI に組み込みます。
 - **CI と同じ検査をローカルで実行できます。** `npm run typecheck`、`npm test`、`node .github/scripts/license-audit.mjs`、`node .github/scripts/validate-plugin-manifest.mjs` は Actions と同一の検査です。依存ライセンスの許可追加は `node .github/scripts/license-audit.mjs --allow BSD-2-Clause` のように引数で渡せますが、追加自体は開発ガイド §15 の依存関係審査を通った後に行ってください。両スクリプトは追加依存を使わない素の Node スクリプトです。
 
 ## EmDash setup and rollout
