@@ -16,9 +16,10 @@
 # this file, so a single required status check covers every matrix leg.
 #
 # Commands are deliberately limited to scripts that exist in package.json
-# (test, typecheck). §G11 forbids inventing a script just because this file or
-# the guide mentions the operation, so `build` uses --if-present and the
-# manifest job is gated on emdash-plugin.jsonc actually existing.
+# (lint, typecheck, test, build, validate). §G11 forbids inventing a script
+# just because this file or the guide mentions the operation, so every command
+# below mirrors a real script; the manifest job additionally stays gated on
+# emdash-plugin.jsonc actually existing.
 name: CI
 
 on:
@@ -46,7 +47,7 @@ env:
 
 jobs:
   build-test:
-    name: Typecheck & unit tests (Node ${{ matrix.node-version }})
+    name: Lint, typecheck, tests & build (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -57,6 +58,14 @@ jobs:
         # against a runtime bump. docs/development-guide.md §G2 leaves the
         # EmDash sandbox runtime unresolved, so widening coverage is the
         # conservative choice until Phase 0 closes G2.
+        #
+        # Note on the lint step: eslint@10 declares engines.node
+        # "^20.19.0 || ^22.13.0 || >=24". Every "22.x" runner resolves above
+        # 22.13, so this matrix is unaffected; a contributor pinned to
+        # 22.6.0-22.12.x gets an npm EBADENGINE warning only. `npm install`
+        # still refuses nothing, and the repository's own floor was derived
+        # from `node --experimental-strip-types` (a tooling floor, not a
+        # runtime floor for the shipped plugin).
         node-version:
           - "22.x"
           - "24.x"
@@ -76,6 +85,14 @@ jobs:
       - name: Install dependencies from lockfile
         run: npm ci
 
+      # Lint is NOT one of the seven §G11 "Required CI categories"; it is an
+      # additional gate. Runs `npm run lint` (eslint.config.mjs: the
+      # non-type-checked typescript-eslint ruleset for `src/`, plus a
+      # hand-picked subset of ESLint's core rules for the CI helper scripts in
+      # .github/scripts/). Rule changes are a config review, not a one-off fix.
+      - name: Lint
+        run: npm run lint
+
       # §G11 "Type checking" — mirrors `npm run typecheck` (tsc --noEmit).
       - name: Type check
         run: npm run typecheck
@@ -84,23 +101,27 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # §G11 "Build". No build script exists yet, so --if-present keeps this a
-      # real gate without inventing a command. Drop --if-present once the build
-      # step lands, or remove the step if the plugin ships source only.
-      - name: Build (only if package.json defines a build script)
-        run: npm run build --if-present
+      # §G11 "Build". Runs `npm run build` (tsc -p tsconfig.build.json, which
+      # emits the compiled module graph to dist/ and excludes *.test.ts).
+      # Bundling is deliberately not done here: §G2 leaves the EmDash sandbox
+      # runtime unresolved and §15 has not approved a bundler dependency.
+      # `dist/` is not uploaded as an artifact: nothing consumes it until the
+      # plugin package layout is settled, and artifacts of a public repository
+      # are downloadable by anyone.
+      - name: Build
+        run: npm run build
 
   manifest:
     name: Plugin manifest validation
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Phase 0 G4 has not created emdash-plugin.jsonc yet, so the steps below
-    # are gated on the file existing and this job is a no-op success until then.
-    # The gate is a step-level `hashFiles` condition: hashFiles is not available
-    # in a job-level `if` (see GitHub docs, "Expression context availability"),
-    # and it can only see files that a checkout step has already written. The
-    # pattern is anchored to the repository root because that is the single file
-    # validate-plugin-manifest.mjs inspects.
+    # The manifest exists (§G4), but the steps below stay gated on the file: a
+    # fork or a branch that has not adopted the manifest yet should not go red,
+    # and `hashFiles` is the only way to express that condition after checkout —
+    # it is not available in a job-level `if` (see GitHub docs, "Expression
+    # context availability"), and it can only see files that a checkout step has
+    # already written. The pattern is anchored to the repository root because
+    # that is the single file the validator inspects.
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -113,22 +134,16 @@ jobs:
         with:
           node-version: "22.x"
 
-      - name: Install dependencies from lockfile
+      # §G11 "Manifest validation" — runs the project's own `validate` script,
+      # which is `node .github/scripts/validate-plugin-manifest.mjs`. That
+      # script is dependency-free plain Node, so this job installs nothing; the
+      # install step comes back together with `@emdash-cms/plugin-cli` once §15
+      # approves the dependency, and only then does `emdash-plugin validate`
+      # become the gate (docs/development-guide.md §4.4: this script is not a
+      # substitute for the official CLI, it is a pre-check).
+      - name: Validate emdash-plugin.jsonc (npm run validate)
         if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
-        run: npm ci
-
-      # Structural validation of the required §G4 fields plus the
-      # manifest/package.json consistency rule from §G12 / §G4.
-      - name: Validate emdash-plugin.jsonc
-        if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
-        run: node .github/scripts/validate-plugin-manifest.mjs
-
-      # Once Phase 0 G3/G4 confirm the official plugin CLI, wire it as
-      # `validate` in package.json and this step picks it up. Do not add a
-      # placeholder script (docs/development-guide.md §4.4, §G11).
-      - name: Official plugin CLI validation (if wired)
-        if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
-        run: npm run validate --if-present
+        run: npm run validate
 
   secret-scan:
     name: Secret scan (gitleaks)

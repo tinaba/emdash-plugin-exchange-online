@@ -12,11 +12,16 @@
     "node": ">=22.6.0"
   },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "eslint .",
     "test": "node --experimental-strip-types --test src/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "validate": "node .github/scripts/validate-plugin-manifest.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.15.30",
-    "typescript": "^5.8.3"
+    "eslint": "^10.15.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.73.0"
   }
 }

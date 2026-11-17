@@ -1,0 +1,26 @@
+// Build configuration for `npm run build` (§G11 "Build").
+//
+// It extends tsconfig.json and changes only what blocks emit:
+//
+//   * `noEmit: false` + `outDir` — the base config is a check-only config.
+//   * `allowImportingTsExtensions: false` — the base config turns it on because
+//     `npm test` runs TypeScript sources directly through
+//     `node --experimental-strip-types`, and TypeScript rejects that flag
+//     together with emit. Sources that will ship must import specifiers that
+//     resolve after compilation; `src/graph-client.ts` has no imports at all,
+//     so nothing needs rewriting today.
+//   * `exclude` — `*.test.ts` files are the test surface, not plugin output.
+//
+// No bundler is configured on purpose. docs/development-guide.md §G2 leaves the
+// EmDash sandbox runtime unresolved and §15 has not approved a bundler
+// dependency, so `emdash-plugin bundle` (or whatever Phase 0 confirms) owns
+// bundling; this script only produces the compiled module graph.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "allowImportingTsExtensions": false
+  },
+  "exclude": ["src/**/*.test.ts"]
+}
