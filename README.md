@@ -27,7 +27,7 @@ EmDash の問い合わせフォームから Exchange Online 経由で通知メ�
 
 - `src/graph-client.ts` implements tenant-specific client-credentials authentication, in-memory token caching, a single 401 refresh, fixed-mailbox Graph submission, and response classification.
 - Graph `202` is represented as request acceptance only; it is not reported as final delivery.
-- `npm test` and `npm run typecheck` validate this foundation. Node.js `>=22.6.0` is required.
+- `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`、`npm run validate` がこの基盤を検証します。Node.js `>=22.6.0` が必要です。
 - Production deployment, the EmDash plugin adapter, Queue/D1 processing, Turnstile integration, and operational runbooks remain pending. There is no Worker entry point, Wrangler configuration, or published/installable plugin package yet.
 - The current Forms plugin email contract does not include a `submissionId`. Queueing its message would copy submitted personal data into the Queue, which the design forbids without separate approval. The integration must not be enabled until that boundary is resolved.
 
@@ -37,9 +37,14 @@ This repository currently contains a TypeScript Graph client foundation, not a d
 
 ```sh
 npm ci
-npm test
+npm run lint
 npm run typecheck
+npm test
+npm run build
+npm run validate
 ```
+
+`npm run build` は `tsconfig.build.json` で `dist/` にコンパイルした結果を書き出します。テストファイルは除外され、`tsconfig.json` の `allowImportingTsExtensions` は emit と両立しないためビルド設定側で無効化しています。バンドルはまだ行いません（§G2 で EmDash サンドボックスのランタイムが未確定のため）。
 
 `GraphClient` accepts `tenantId`, `clientId`, `clientSecret`, `mailbox`, and `saveToSentItems`. The client validates the identity and mail inputs, gets a token for the tenant-specific Entra endpoint, and sends through the configured mailbox. Do not put real tenant credentials or personal data in tests, source code, or logs. These constructor options are not yet wired to Worker bindings or EmDash settings.
 
@@ -49,7 +54,7 @@ npm run typecheck
 
 | ワークフロー | 内容 |
 |---|---|
-| [.github/workflows/ci.yml](.github/workflows/ci.yml) | 型チェック・ユニットテスト（Node 22 / 24 / 26 のマトリクス）、マニフェスト検証、シークレットスキャン（gitleaks）、依存関係の脆弱性監査（`npm audit`）、PR での新規依存レビュー、ライセンス審査。集約チェック **`CI (required)`** が合否の判定になります |
+| [.github/workflows/ci.yml](.github/workflows/ci.yml) | lint（ESLint + typescript-eslint）、型チェック、ユニットテスト（Node 22 / 24 / 26 のマトリクス）、ビルド（`npm run build`）、マニフェスト検証、シークレットスキャン（gitleaks）、依存関係の脆弱性監査（`npm audit`）、PR での新規依存レビュー、ライセンス審査。集約チェック **`CI (required)`** が合否の判定になります |
 | [.github/workflows/codeql.yml](.github/workflows/codeql.yml) | CodeQL による静的解析（push / PR / 月曜 17:15 JST の定期実行）。結果は PR のチェックではなく **Security → Code scanning** に表示されます |
 | [.github/workflows/scheduled-security.yml](.github/workflows/scheduled-security.yml) | 火曜 12:15 JST の定期スキャン。コミット履歴全体へのシークレット再スキャン、`npm audit`、ライセンス再審査 |
 
@@ -57,10 +62,11 @@ npm run typecheck
 
 - **必須チェックの有効化が必要です。** Actions だけではマージは止められません。GitHub の **Settings → Branches → Add branch protection rule** で `main` と `develop` にルールを作り、*Require status checks to pass before merging* に **`CI (required)`** を追加してください。個別のマトリクス判定ではなく集約チェック 1 本を必須にしています。
 - **GitHub 標準のシークレットスキャンも併用してください。** Settings → Security → *Secret scanning* と *Push protection* を有効にすると、コミット前の段階で秘密情報を止められます。公開リポジトリでは無料で使えます。
-- **まだ存在しないスクリプトは呼び出しません。** ビルド・`validate`・lint は `package.json` にスクリプトが定義されるまで `--if-present` またはマニフェストの存在検出でスキップされ、その間はスキップが集約チェックの失敗にならない設計です。開発ガイド §G11 の「期待される操作を理由にスクリプトを捏造しない」に対応しています。
+- **スクリプトの捏造はしていません。** §G11 の「期待される操作を理由にスクリプトを捏造しない」に対応し、`package.json` に定義が無い間は `--if-present` でスキップしていました。`build` / `validate` / `lint` を実装したので、CI は現在は同じコマンドを `--if-present` なしで実行し、失敗すれば集約チェックが赤になります。マニフェスト検証ステップだけは `hashFiles` で `emdash-plugin.jsonc` の存在を検出して条件付きのままにしています（マニフェストを持たないフォークやブランチで無駄に赤にならないため）。
+- **lint の設定意図。** [`eslint.config.mjs`](eslint.config.mjs) は承認済みの 2 依存（`eslint` と `typescript-eslint`）だけで成立させています。ESLint 10 は `@eslint/js` を同梱せず `globals` も入っていないため、既成の `js.configs.recommended` プリセットは使えません。TypeScript は `typescript-eslint` の recommended（型情報を使わない方）、`.github/scripts/**/*.mjs` は ESLint 本体のルールから選んだ正しさ重視のサブセットで検査します。型が必要になるルール（`no-floating-promises` など）は `recommendedTypeChecked` 側で、後日追加承認を得てから有効化します。
 - **[`emdash-plugin.jsonc`](emdash-plugin.jsonc) を追加しました。** 公開されている EmDash のマニフェスト仕様（`additionalProperties: false`・必須キー・capability 名の一覧・文字数制限）に沿って、現在のコードが必要とする権限だけを宣言しています: `network:request` と `allowedHosts`（`graph.microsoft.com` / `login.microsoftonline.com`）、`storage` は空で「コレクション要求なし」を明示します。`email:send` や `hooks.email-transport:register` は `src/plugin.ts` が実装され送信方式が決まるまで宣言しません（宣言だけ先に置くと運用者に余計な同意差分が出ます）。一方 `publisher`（Atmosphere DID）と `release.requires`（対応 EmDash 範囲）は §G3・§G0/§G1 の未クローズ項目で、CI は**警告**として表示します（リポジトリ方針として未承認の項目で CI を赤にはしません）。
 - **マニフェスト検査は公式 CLI の代替ではありません。** `.github/scripts/validate-plugin-manifest.mjs` は公開仕様のルールを素の Node で再現したもので、型エラーや capability の誤字を PR の段階で止めます。権限を持つのは `emdash-plugin validate`（`@emdash-cms/plugin-cli`）で、この依存が §15 の審査を通ったら CI に組み込みます。
-- **CI と同じ検査をローカルで実行できます。** `npm run typecheck`、`npm test`、`node .github/scripts/license-audit.mjs`、`node .github/scripts/validate-plugin-manifest.mjs` は Actions と同一の検査です。依存ライセンスの許可追加は `node .github/scripts/license-audit.mjs --allow BSD-2-Clause` のように引数で渡せますが、追加自体は開発ガイド §15 の依存関係審査を通った後に行ってください。両スクリプトは追加依存を使わない素の Node スクリプトです。
+- **CI と同じ検査をローカルで実行できます。** `npm run lint`、`npm run typecheck`、`npm test`、`npm run build`、`npm run validate`、`node .github/scripts/license-audit.mjs` は Actions と同一の検査です。依存ライセンスの許可追加は `node .github/scripts/license-audit.mjs --allow BSD-2-Clause` のように引数で渡せますが、追加自体は開発ガイド §15 の依存関係審査を通った後に行ってください。両 `.mjs` スクリプトは追加依存を使わない素の Node スクリプトです（`npm install` 不要で実行できます）。
 
 ## EmDash setup and rollout
 

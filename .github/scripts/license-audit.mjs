@@ -239,7 +239,6 @@ for (const [key, entry] of Object.entries(packages)) {
   byLicense.set(info.expression, record);
 
   if (!isAllowed) {
-    const normalised = normalizeSpdx(info.expression);
     const reviewFamily = String(info.expression)
       .split(/\s+OR\s+/i)
       .some((part) => NEEDS_REVIEW.has(normalizeSpdx(part)));
