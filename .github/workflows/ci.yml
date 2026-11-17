@@ -53,19 +53,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # package.json declares engines.node ">=22.6.0". Node 22 is the
-        # supported floor, Node 24 the active LTS, and the newest line guards
-        # against a runtime bump. docs/development-guide.md §G2 leaves the
-        # EmDash sandbox runtime unresolved, so widening coverage is the
-        # conservative choice until Phase 0 closes G2.
-        #
-        # Note on the lint step: eslint@10 declares engines.node
-        # "^20.19.0 || ^22.13.0 || >=24". Every "22.x" runner resolves above
-        # 22.13, so this matrix is unaffected; a contributor pinned to
-        # 22.6.0-22.12.x gets an npm EBADENGINE warning only. `npm install`
-        # still refuses nothing, and the repository's own floor was derived
-        # from `node --experimental-strip-types` (a tooling floor, not a
-        # runtime floor for the shipped plugin).
+        # package.json declares engines.node "^22.13.0 || >=24.0.0": the
+        # intersection of `node --experimental-strip-types` (>=22.6.0) and
+        # eslint@10 (`^20.19.0 || ^22.13.0 || >=24`, verified against the
+        # installed package). That is a tooling floor for this repository, not
+        # a runtime floor for the shipped plugin —
+        # docs/development-guide.md §G2 leaves the EmDash sandbox runtime
+        # unresolved, so every line this file claims to support is verified
+        # here: Node 22 is the supported floor (the 22.x runner resolves to
+        # 22.23.x, well above the 22.13 requirement), Node 24 is the active
+        # LTS, and the newest line guards against a silent runtime bump.
         node-version:
           - "22.x"
           - "24.x"
