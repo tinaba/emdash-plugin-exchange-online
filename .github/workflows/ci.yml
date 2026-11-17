@@ -1,0 +1,293 @@
+# Required CI gates.
+#
+# The jobs below map one-to-one to the "Required CI categories" checklist in
+# docs/development-guide.md §G11:
+#
+#   Manifest validation            -> job: manifest
+#   Type checking                  -> job: build-test
+#   Unit tests                     -> job: build-test
+#   Build                          -> job: build-test
+#   Secret scanning                -> job: secret-scan
+#   Dependency vulnerability scan  -> jobs: dependency-vulnerabilities, dependency-review
+#   License scanning               -> job: license-scan
+#
+# "A mandatory CI failure blocks merge." (docs/development-guide.md §G11) is
+# enforced through branch protection on the aggregate `ci` job at the bottom of
+# this file, so a single required status check covers every matrix leg.
+#
+# Commands are deliberately limited to scripts that exist in package.json
+# (test, typecheck). §G11 forbids inventing a script just because this file or
+# the guide mentions the operation, so `build` uses --if-present and the
+# manifest job is gated on emdash-plugin.jsonc actually existing.
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+# Least privilege (docs/development-guide.md §4.1). Jobs that need a wider
+# scope declare it themselves.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  npm_config_fund: "false"
+
+jobs:
+  build-test:
+    name: Typecheck & unit tests (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # package.json declares engines.node ">=22.6.0". Node 22 is the
+        # supported floor, Node 24 the active LTS, and the newest line guards
+        # against a runtime bump. docs/development-guide.md §G2 leaves the
+        # EmDash sandbox runtime unresolved, so widening coverage is the
+        # conservative choice until Phase 0 closes G2.
+        node-version:
+          - "22.x"
+          - "24.x"
+          - "26.x"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies from lockfile
+        run: npm ci
+
+      # §G11 "Type checking" — mirrors `npm run typecheck` (tsc --noEmit).
+      - name: Type check
+        run: npm run typecheck
+
+      # §G11 "Unit tests" — node:test suites (docs/development-guide.md §12.1).
+      - name: Unit tests
+        run: npm test
+
+      # §G11 "Build". No build script exists yet, so --if-present keeps this a
+      # real gate without inventing a command. Drop --if-present once the build
+      # step lands, or remove the step if the plugin ships source only.
+      - name: Build (only if package.json defines a build script)
+        run: npm run build --if-present
+
+  manifest:
+    name: Plugin manifest validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Phase 0 G4 has not created emdash-plugin.jsonc yet, so the steps below
+    # are gated on the file existing and this job is a no-op success until then.
+    # The gate is a step-level `hashFiles` condition: hashFiles is not available
+    # in a job-level `if` (see GitHub docs, "Expression context availability"),
+    # and it can only see files that a checkout step has already written. The
+    # pattern is anchored to the repository root because that is the single file
+    # validate-plugin-manifest.mjs inspects.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22.x"
+
+      - name: Install dependencies from lockfile
+        if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
+        run: npm ci
+
+      # Structural validation of the required §G4 fields plus the
+      # manifest/package.json consistency rule from §G12 / §G4.
+      - name: Validate emdash-plugin.jsonc
+        if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
+        run: node .github/scripts/validate-plugin-manifest.mjs
+
+      # Once Phase 0 G3/G4 confirm the official plugin CLI, wire it as
+      # `validate` in package.json and this step picks it up. Do not add a
+      # placeholder script (docs/development-guide.md §4.4, §G11).
+      - name: Official plugin CLI validation (if wired)
+        if: ${{ hashFiles('emdash-plugin.jsonc') != '' }}
+        run: npm run validate --if-present
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # gitleaks-action posts inline review comments on pull requests.
+      pull-requests: write
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v7.0.1
+        with:
+          # Secrets that were later deleted still live in history; scan all of it.
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Pinned to the v3.0.0 commit SHA (third-party action).
+      # A GITLEAKS_LICENSE secret is only required for organization-owned
+      # repositories, not personal accounts.
+      - name: Detect secrets in code and history
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Findings are printed in the job log and the PR review comments. Do
+          # not also upload the report artifact: artifacts of a public
+          # repository are downloadable by anyone, and a gitleaks report
+          # contains detected secret material. Also avoids needing
+          # `actions: write` for this job.
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
+
+  dependency-vulnerabilities:
+    name: Dependency vulnerabilities (npm audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      # Required to upload the audit report artifact.
+      actions: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22.x"
+          cache: npm
+
+      - name: Install dependencies from lockfile
+        run: npm ci
+
+      # §G11 "Dependency vulnerability scanning". Blocking at high/critical.
+      # Lower severities are reported by the same command for review; the
+      # weekly sweep in scheduled-security.yml catches advisories published
+      # after the lockfile was last touched.
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
+      - name: Collect machine-readable audit report (on failure)
+        if: ${{ failure() }}
+        run: npm audit --json > audit.json
+
+      - name: Upload audit report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: npm-audit-report
+          path: audit.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+  dependency-review:
+    name: Dependency review (pull requests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: ${{ github.event_name == 'pull_request' }}
+    permissions:
+      contents: read
+      # comment-summary-in-pr needs to write the PR comment.
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      # Reviews dependencies *added by this PR* against the base branch: new
+      # advisories, license changes, and provenance. docs/development-guide.md
+      # §15 requires dependency changes to go through PR review.
+      - name: Review added dependencies
+        uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+          # Every dependency in this repository is currently a
+          # devDependency; §15 applies regardless of scope.
+          fail-on-scopes: runtime, development
+          comment-summary-in-pr: always
+
+  license-scan:
+    name: License scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7.1.0
+        with:
+          node-version: "22.x"
+
+      # §G11 "License scanning" and §G12 "OSS and Licensing". Reads the
+      # resolved tree from package-lock.json, so no install is needed and the
+      # result matches exactly what `npm ci` would produce.
+      - name: Check dependency licenses against the allowlist
+        run: node .github/scripts/license-audit.mjs
+
+  # Aggregate status check to require in branch protection
+  # (Settings -> Branches -> "Require status checks to pass"). Treating
+  # "skipped" as acceptable is what lets the conditional jobs
+  # (manifest, dependency-review) stay green before Phase 0 lands.
+  ci:
+    name: CI (required)
+    needs:
+      - build-test
+      - manifest
+      - secret-scan
+      - dependency-vulnerabilities
+      - dependency-review
+      - license-scan
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Aggregate required checks
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          node -e '
+            const needs = JSON.parse(process.env.NEEDS);
+            const acceptable = new Set(["success", "skipped"]);
+            const failed = Object.entries(needs)
+              .filter(([, job]) => !acceptable.has(job.result))
+              .map(([name, job]) => `  - ${name}: ${job.result}`);
+            console.log("Required CI checks:");
+            for (const [name, job] of Object.entries(needs)) {
+              console.log(`  - ${name}: ${job.result}`);
+            }
+            if (failed.length > 0) {
+              console.error("");
+              console.error("A mandatory CI check did not pass (docs/development-guide.md §G11):");
+              console.error(failed.join("\n"));
+              process.exit(1);
+            }
+            console.log("");
+            console.log("All mandatory CI checks passed or were legitimately skipped.");
+          '

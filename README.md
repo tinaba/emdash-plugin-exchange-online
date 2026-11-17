@@ -43,6 +43,24 @@ npm run typecheck
 
 `GraphClient` accepts `tenantId`, `clientId`, `clientSecret`, `mailbox`, and `saveToSentItems`. The client validates the identity and mail inputs, gets a token for the tenant-specific Entra endpoint, and sends through the configured mailbox. Do not put real tenant credentials or personal data in tests, source code, or logs. These constructor options are not yet wired to Worker bindings or EmDash settings.
 
+## 継続的インテグレーション（CI）
+
+開発ガイド §G11 の必須チェック項目を GitHub Actions で実装しています。対象ブランチは `main` と `develop`、PR の base も同じです。
+
+| ワークフロー | 内容 |
+|---|---|
+| [.github/workflows/ci.yml](.github/workflows/ci.yml) | 型チェック・ユニットテスト（Node 22 / 24 / 26 のマトリクス）、マニフェスト検証、シークレットスキャン（gitleaks）、依存関係の脆弱性監査（`npm audit`）、PR での新規依存レビュー、ライセンス審査。集約チェック **`CI (required)`** が合否の判定になります |
+| [.github/workflows/codeql.yml](.github/workflows/codeql.yml) | CodeQL による静的解析（push / PR / 月曜 17:15 JST の定期実行）。結果は PR のチェックではなく **Security → Code scanning** に表示されます |
+| [.github/workflows/scheduled-security.yml](.github/workflows/scheduled-security.yml) | 火曜 12:15 JST の定期スキャン。コミット履歴全体へのシークレット再スキャン、`npm audit`、ライセンス再審査 |
+
+運用上の注意点:
+
+- **必須チェックの有効化が必要です。** Actions だけではマージは止められません。GitHub の **Settings → Branches → Add branch protection rule** で `main` と `develop` にルールを作り、*Require status checks to pass before merging* に **`CI (required)`** を追加してください。個別のマトリクス判定ではなく集約チェック 1 本を必須にしています。
+- **GitHub 標準のシークレットスキャンも併用してください。** Settings → Security → *Secret scanning* と *Push protection* を有効にすると、コミット前の段階で秘密情報を止められます。公開リポジトリでは無料で使えます。
+- **まだ存在しないスクリプトは呼び出しません。** ビルド・`validate`・lint は `package.json` にスクリプトが定義されるまで `--if-present` またはマニフェストの存在検出でスキップされ、その間はスキップが集約チェックの失敗にならない設計です。開発ガイド §G11 の「期待される操作を理由にスクリプトを捏造しない」に対応しています。
+- `emdash-plugin.jsonc` を追加すると、§G4 の必須フィールドと `package.json` との整合性を検査するジョブが自動的に有効になります。
+- **CI と同じ検査をローカルで実行できます。** `npm run typecheck`、`npm test`、`node .github/scripts/license-audit.mjs`、`node .github/scripts/validate-plugin-manifest.mjs` は Actions と同一の検査です。依存ライセンスの許可追加は `node .github/scripts/license-audit.mjs --allow BSD-2-Clause` のように引数で渡せますが、追加自体は開発ガイド §15 の依存関係審査を通った後に行ってください。両スクリプトは追加依存を使わない素の Node スクリプトです。
+
 ## EmDash setup and rollout
 
 **現在は EmDash へインストール／登録できません。** EmDash plugin adapter、Worker entry point、配布パッケージ、Wrangler 設定がなく、現在の Forms の `email:deliver` 契約では Queue に安全に渡すための `submissionId` を得られません。実装済み Graph クライアントを直接 EmDash の設定画面へ登録したり、フォームのメッセージをそのまま Queue へ送ったりしないでください。
